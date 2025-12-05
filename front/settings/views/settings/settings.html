@@ -1,0 +1,18 @@
+<div class="container-fluid p-3 d-flex flex-column">
+    <h1 class="mb-3">PWA Settings</h1>
+    
+    <div class="textarea-container mb-3 flex-grow-1">
+        <textarea 
+            id="settingsTextarea" 
+            class="form-control h-100" 
+            z-bind="manifest"
+            placeholder="Enter your PWA settings here..."></textarea>
+    </div>
+    <div class="alert alert-info mb-3 p-2" role="alert" z-show-if="message">
+        ${message}
+    </div>
+    <div class="button-container d-flex gap-2">
+        <button class="btn btn-primary" z-on-click="view.saveSettings()">Save</button>
+        <button class="btn btn-secondary" z-on-click="view.regenerateSW()">Regenerate SW</button>
+    </div>
+</div>

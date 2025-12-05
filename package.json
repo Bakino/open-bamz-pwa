@@ -1,0 +1,22 @@
+{
+  "name": "open-bamz-pwa",
+  "version": "1.0.0",
+  "main": "index.mjs",
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "description": "Open BamZ PWA plugin",
+  "dependencies": {
+    "acorn": "^8.15.0",
+    "cheerio": "^1.1.2",
+    "express": "^5.1.0",
+    "fs-extra": "^11.3.2",
+    "glob": "^13.0.0",
+    "workbox-build": "^7.4.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1"
+  }
+}

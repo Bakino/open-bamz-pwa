@@ -1,0 +1,10 @@
+{
+  "routing": "HASH",
+  "viewsPath": "views",
+  "routes": [
+    {
+      "url": "/",
+      "path": "settings"
+    }
+  ]
+}
