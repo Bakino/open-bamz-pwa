@@ -86,7 +86,8 @@ function extractUrlsFromHTML(html) {
   
     $('script[src], link[href]').each((index, element) => {
       const src = $(element).attr('src') || $(element).attr('href');
-      if (src && src.startsWith('https://')) {
+      const rel = $(element).attr('rel')
+      if (src && src.startsWith('https://') && rel !== "preconnect") {
         urls.push(src);
       }
     });
@@ -192,7 +193,7 @@ export const initPlugin = async ({logger, userLoggedAndHasPlugin, hasCurrentPlug
 
         //list all application files
         const filesDirectory = path.join(process.env.DATA_DIR, "apps" ,appName, "public");
-        const files = await glob(`${filesDirectory}/**/*`, {});
+        const files = await glob(`${filesDirectory}/**/*`, {ignore: ['**/*.d.ts']});
 
 
         const globPatterns = []; 
@@ -203,12 +204,20 @@ export const initPlugin = async ({logger, userLoggedAndHasPlugin, hasCurrentPlug
             {revision: Date.now().toString(), url: "/_openbamz_admin.js?appName="+appName},
         ]; 
 
+        function addToManifestEntries(url){
+            if(!globPatterns.includes(url) && !additionalManifestEntries.some(e=>e.url === url)){
+                if(url.includes("drawer")){
+                    debugger;
+                    console.log("ADD "+url)
+                }
+                additionalManifestEntries.push({revision: Date.now().toString(), url: url});
+            }
+        }
+
         // if other plugin registered urls to cache, add them
         if(appContext.pluginsData.pwa?.pluginSlots?.urlsToCache){
             for(let u of appContext.pluginsData.pwa.pluginSlots.urlsToCache){
-                additionalManifestEntries.push({
-                    revision: Date.now().toString(), url: u.url,
-                });
+                addToManifestEntries(u.url);
             }
         }
 
@@ -220,7 +229,7 @@ export const initPlugin = async ({logger, userLoggedAndHasPlugin, hasCurrentPlug
             if (f.endsWith('.html') || f.endsWith('.js') || f.endsWith('.mjs')) {
                 // source to be parse for dependencies caching (search for CDN to cache inside)
                 filesToAnalyze.push({
-                    baseUrl: `/app/${appName}/${filePath}`,
+                    baseUrl: filePath,
                     filePath: f
                 });
             }
@@ -239,10 +248,7 @@ export const initPlugin = async ({logger, userLoggedAndHasPlugin, hasCurrentPlug
                 //The plugin has a frontend lib loaded automatically
 
                 //add the file itself
-                additionalManifestEntries.push({
-                    revision: Date.now().toString(), //TODO: improve this by taking md5sum of the file
-                    url: `/plugin/${pluginId}/${pluginData.frontEndLib}`
-                }); 
+                addToManifestEntries(`/plugin/${pluginId}/${pluginData.frontEndLib}`);
 
                 //add plugin file to analyze (search for CDN or other files imported)
                 filesToAnalyze.push({
@@ -311,16 +317,13 @@ export const initPlugin = async ({logger, userLoggedAndHasPlugin, hasCurrentPlug
                     //relative path
                     fullUrl = path.join(path.dirname(file.baseUrl), url);
                     
-                    revision = Date.now().toString(); //TODO use md5sum
+                    //revision = Date.now().toString(); //TODO use md5sum
                     filesToAnalyze.push({
                         baseUrl: fullUrl,
                         filePath: path.join(path.dirname(file.filePath), url)
                     }) ;
                 }
-                additionalManifestEntries.push({
-                    revision: revision,
-                    url: fullUrl
-                });
+                addToManifestEntries(fullUrl) ;
             }
         }
         

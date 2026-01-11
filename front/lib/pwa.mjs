@@ -20,7 +20,8 @@ if ('serviceWorker' in navigator) {
                 installingWorker.addEventListener('statechange', () => {
                     if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
                         // New or updated content is available
-                        window.alert('A new version of this application is available. Please refresh the page to update.');
+                        window.dispatchEvent("pwa-update-available") ;
+                        //window.alert('A new version of this application is available. Please refresh the page to update.');
                     }
                 });
             });
