@@ -94,17 +94,30 @@ function extractUrlsFromHTML(html) {
   
     return urls;
 }
-function findImportURLs(node) {
+function findImportURLs(node, content) {
     let urls = [];
 
     if (node.type === 'ImportDeclaration') {
         urls.push(node.source.value);
+    }else if (node.type === 'ImportExpression') {
+        //console.log("NODE ?", node.source) ;
+        if(node.source.value){
+            urls.push(node.source.value.replace(/^'/, "").replace(/'$/, ""));
+        }
+   /* don't do that because the URL may be a dynamic endpoint we should not try to download it
+   }else if(node.type === "ExpressionStatement"){
+        if(node.expression?.left?.property?.name === "href") {
+            if(node.expression?.right?.type === "TemplateLiteral"){
+                let literalStr = content.substring(node.expression.right.start+1, node.expression.right.end-1) ;
+                urls.push(literalStr);
+            }
+        }*/
     }
 
     // Traverse child nodes
     for (let key in node) {
         if (node[key] && typeof node[key] === 'object') {
-            urls = urls.concat(findImportURLs(node[key]));
+            urls = urls.concat(findImportURLs(node[key], content));
         }
     }
 
@@ -115,7 +128,12 @@ async function extractUrlsFromJsContent(content, url, logger){
     let urls = [];
     
     try{
-        urls = findImportURLs(acorn.parse(content, { ecmaVersion: 2022, sourceType: "module", allowImportExportEverywhere: true }));
+        //urls = findImportURLs(acorn.parse(content, { ecmaVersion: 2022, sourceType: "module", allowImportExportEverywhere: true }));
+        urls = findImportURLs(
+            acorn.parse(content, { ecmaVersion: "latest", sourceType: "module", 
+            allowImportExportEverywhere: true, allowAwaitOutsideFunction: true }),
+            content
+        );
         logger.info("Parsed JS url "+url+" found %o", urls);
     }catch(err){
         logger.error("Error parsing JS url "+url+" %o in %o", err, content);
@@ -187,6 +205,10 @@ export const initPlugin = async ({logger, userLoggedAndHasPlugin, hasCurrentPlug
         }
     });
 
+    function isJavascript(contentType){
+        return contentType.includes("javascript") ;
+    }
+
     async function buildServiceWorker(appName){
         //get the application context (all plugins informations)
         let appContext = await contextOfApp(appName);
@@ -204,24 +226,43 @@ export const initPlugin = async ({logger, userLoggedAndHasPlugin, hasCurrentPlug
             {revision: Date.now().toString(), url: "/_openbamz_admin.js?appName="+appName},
         ]; 
 
+        const localBaseUrl = "http://localhost:3000" ; 
+
         function addToManifestEntries(url){
+            if(url.startsWith(localBaseUrl)){
+                url = url.replace(localBaseUrl, "") ;
+            }
+            if(url.includes("?appName="+appName)){
+                url = url.replace("?appName="+appName, "") ;
+            }
             if(!globPatterns.includes(url) && !additionalManifestEntries.some(e=>e.url === url)){
-                if(url.includes("drawer")){
-                    debugger;
-                    console.log("ADD "+url)
-                }
                 additionalManifestEntries.push({revision: Date.now().toString(), url: url});
             }
         }
 
+        let filesToAnalyze = [];
         // if other plugin registered urls to cache, add them
-        if(appContext.pluginsData.pwa?.pluginSlots?.urlsToCache){
-            for(let u of appContext.pluginsData.pwa.pluginSlots.urlsToCache){
+        if(appContext.pluginsData["open-bamz-pwa"].pluginSlots?.urlsToCache){
+            for(let u of appContext.pluginsData["open-bamz-pwa"].pluginSlots.urlsToCache){
+
                 addToManifestEntries(u.url);
+                let url = u.url ;
+                if(!url.startsWith("/")){
+                    url = "/"+url ;
+                }
+                url = localBaseUrl + url ;
+                const response = await fetch(`${url}?appName=${appName}`);
+                //console.log(">>>>>> response content type", u.url, response.headers.get("content-type") )
+                if(response.ok && isJavascript(response.headers.get("content-type"))){
+                    filesToAnalyze.push({
+                        baseUrl: url,
+                        fileContent: await response.text()
+                    }) ;
+                }
             }
         }
 
-        let filesToAnalyze = [];
+        
         for(let f of files){
             let filePath = path.relative(filesDirectory, f);
             if(filePath === "sw.js"){ continue ; }
@@ -284,7 +325,7 @@ export const initPlugin = async ({logger, userLoggedAndHasPlugin, hasCurrentPlug
                     // fetch to get dependencies
                     const response = await fetch(url);
                     //console.log("response content type", url, response.headers.get("content-type") )
-                    if(response.ok && response.headers.get("content-type").includes("application/javascript")){
+                    if(response.ok && isJavascript(response.headers.get("content-type"))){
                         filesToAnalyze.push({
                             baseUrl: fullUrl,
                             fileContent: await response.text()
@@ -304,9 +345,13 @@ export const initPlugin = async ({logger, userLoggedAndHasPlugin, hasCurrentPlug
                     }else{
                         fullUrl = path.join(path.dirname(file.baseUrl), url);
                     }
+                    if(fullUrl.startsWith(localBaseUrl)){
+                        //pass the appName
+                        fullUrl += "?appName="+appName;
+                    }
                     const response = await fetch(fullUrl);
-                    //console.log("response content type", fullUrl, response.headers.get("content-type") )
-                    if(response.ok && response.headers.get("content-type").includes("application/javascript")){
+                    console.log("response content type", fullUrl, response.headers.get("content-type") )
+                    if(response.ok && isJavascript(response.headers.get("content-type"))){
                         filesToAnalyze.push({
                             baseUrl: fullUrl,
                             fileContent: await response.text()
