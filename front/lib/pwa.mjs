@@ -1,6 +1,10 @@
 if ('serviceWorker' in navigator) {
     //load service worker
     async function loadPWA() {
+        if(window.LOGGED_BAMZ_USER){
+            //logged as bamz user, don't load PWA to always force source refresh
+            return;
+        }
         try {
             //add manifest to header
             const link = document.createElement("LINK") ;
